@@ -1,18 +1,3 @@
-"""
-Includes the Marchenko-Pastur law, the Stieltjes transform, bulk fitting, and universality diagnostics.
-
-Consumes a standardised return matrix X of shape (T, N); returns eigenvalues,
-eigenvectors, and facts about them.  Knows nothing about portfolios or data
-sources.
-
-Conventions
------------
-X          : (T, N), rows = time, columns = assets, already devolatilised.
-q          : N / T.
-evals      : ascending, as returned by numpy.linalg.eigh.
-Stieltjes  : m(z) = (1/N) Tr (z I - E)^{-1}, evaluated below the real axis.
-"""
-
 from __future__ import annotations
 import numpy as np
 from scipy.optimize import minimize
