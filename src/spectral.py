@@ -11,7 +11,7 @@ __all__ = [
 ]
 
 
-# Eigenstructure
+# Eigenstructure of Correlation matrix
 
 def correlation(X):
     """Sample correlation matrix with an exactly unit diagonal."""
@@ -29,7 +29,7 @@ def spectrum(X):
     return evals, evecs, C
 
 
-# Marchenko-Pastur
+# Marchenko-Pastur law
 
 def mp_edges(q, sigma2 = 1.0):
     """Support of the MP bulk, (lambda_minus, lambda_plus)."""
