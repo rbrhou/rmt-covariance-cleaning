@@ -71,7 +71,7 @@ def to_returns(prices, kind="log"):
     return r.iloc[1:]
  
  
-# ----------------------------------------------------------- universe filtering
+# Universe filtering
  
 def filter_universe(returns, membership=None, asof=None, n_assets=None,
                     dollar_volume=None, min_obs_frac=0.98, max_zero_frac=0.05,
@@ -124,7 +124,7 @@ def filter_universe(returns, membership=None, asof=None, n_assets=None,
     return R
  
  
-# --------------------------------------------------------------- preprocessing
+# Preprocessing
  
 def devolatilise(returns, halflife=63, min_periods=21, lag=1, floor=1e-8):
     """Divide each series by a causal, lagged EWMA volatility estimate.
@@ -165,7 +165,7 @@ def prepare(returns, halflife=63, n_sigma=8.0, devol=True):
                  raw=R.loc[Z.index])
  
  
-# ----------------------------------------------------------------- null models
+# Null models
  
 def scramble(X, rng=None):
     """Permute each column independently in time.
@@ -213,7 +213,7 @@ def bootstrap_iid(X, rng=None):
     return X[rng.integers(0, X.shape[0], X.shape[0])]
  
  
-# ------------------------------------------------------------------- synthetic
+# Synthetic
  
 def dispersed_spectrum(N, levels=(0.5, 1.0, 2.0), weights=(0.2, 0.6, 0.2),
                        spikes=()):
