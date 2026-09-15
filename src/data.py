@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
+import warnings
 import numpy as np
 import pandas as pd
  
@@ -21,6 +22,7 @@ class Panel:
     tickers: list = field(default_factory=list)
     dates: pd.DatetimeIndex | None = None
     raw: pd.DataFrame | None = None      # returns before preprocessing
+    dropped: list = field(default_factory=list)   # degenerate columns removed
  
     @property
     def shape(self):
@@ -37,7 +39,8 @@ class Panel:
             raise ValueError("no date index attached")
         m = (self.dates >= pd.Timestamp(start)) & (self.dates <= pd.Timestamp(end))
         return Panel(self.X[m], self.tickers, self.dates[m],
-                     None if self.raw is None else self.raw.loc[m])
+                     None if self.raw is None else self.raw.loc[m],
+                     list(self.dropped))
  
  
 # loading
@@ -149,20 +152,64 @@ def winsorise(X, n_sigma=8.0):
     return pd.DataFrame(X).clip(-n_sigma, n_sigma)
  
  
-def standardise(X, ddof=1):
+def standardise(X, ddof=1, min_std=1e-12):
+    """Z-score each column.
+
+    A zero-variance column cannot be standardised at all.  Dividing by its
+    std yields a column of NaN, which a later row-wise dropna turns into an
+    empty panel -- so refuse it here instead of propagating it.  `prepare`
+    removes such columns before this is reached.
+    """
     X = pd.DataFrame(X)
-    return (X - X.mean()) / X.std(ddof=ddof)
+    sd = X.std(ddof=ddof)
+    if (sd <= min_std).any():
+        bad = list(sd.index[sd <= min_std])
+        raise ValueError(
+            f"cannot standardise {len(bad)} zero-variance column(s): {bad[:8]}"
+            f"{' ...' if len(bad) > 8 else ''}")
+    return (X - X.mean()) / sd
  
  
-def prepare(returns, halflife=63, n_sigma=8.0, devol=True):
+def _drop_degenerate(Z, min_std=1e-12):
+    """Drop columns with no variance left. Returns (kept frame, dropped names).
+
+    A dead, suspended or fully stale series is constant, and a constant column
+    is not a weak signal -- it is an undefined one.  Devolatilisation can also
+    flatten a series that was not constant to begin with, so this is checked
+    both before and after that step.
+    """
+    sd = Z.std(ddof=1)
+    bad = sd.index[~(sd > min_std)]
+    return Z.drop(columns=bad), list(bad)
+
+
+def prepare(returns, halflife=63, n_sigma=8.0, devol=True, min_std=1e-12):
     """returns -> Panel. The canonical entry point for the rest of the package."""
     R = pd.DataFrame(returns).dropna(axis=1, how="any")
+    R, dropped = _drop_degenerate(R, min_std)
+
     Z = devolatilise(R, halflife=halflife) if devol else R
-    Z = standardise(winsorise(Z, n_sigma))
+    Z = winsorise(Z, n_sigma)
+    Z, dropped_post = _drop_degenerate(Z, min_std)
+    dropped += dropped_post
+
+    Z = standardise(Z, min_std=min_std)
     Z = Z.dropna(axis=0, how="any")
+    if Z.shape[1] == 0 or Z.shape[0] == 0:
+        raise ValueError(
+            f"preparation left an empty panel (shape {Z.shape}); "
+            f"{len(dropped)} column(s) were degenerate")
+    if dropped:
+        warnings.warn(
+            f"prepare dropped {len(dropped)} zero-variance column(s): "
+            f"{dropped[:8]}{' ...' if len(dropped) > 8 else ''}",
+            RuntimeWarning, stacklevel=2)
+
+    # `raw` must stay column-aligned with X: run_backtest indexes both by the
+    # same asset positions when it rebuilds Sigma from the window volatilities.
     return Panel(X=Z.to_numpy(float), tickers=list(Z.columns),
                  dates=Z.index if isinstance(Z.index, pd.DatetimeIndex) else None,
-                 raw=R.loc[Z.index])
+                 raw=R.loc[Z.index, Z.columns], dropped=dropped)
  
  
 # Null models

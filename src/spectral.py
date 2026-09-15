@@ -1,4 +1,5 @@
 from __future__ import annotations
+import warnings
 import numpy as np
 from scipy.optimize import minimize
 from scipy.stats import kstest
@@ -59,7 +60,8 @@ def mp_cdf(x, q, sigma2=1.0, grid = 4000):
     return np.interp(np.asarray(x, float), g, cdf, left=0.0, right=1.0)
 
 
-def fit_mp_bulk(evals, n_exclude = None, q0 = 0.5, max_iter = 6):
+def fit_mp_bulk(evals, n_exclude = None, q0 = 0.5, max_iter = 6,
+                q_bounds = (1e-3, 50.0), zero_tol = 1e-8):
     """Fit (q_eff, sigma2) to the bulk by minimising KS distance.
 
     Both parameters float.  sigma2 < 1 because the spikes carry variance out of
@@ -68,9 +70,32 @@ def fit_mp_bulk(evals, n_exclude = None, q0 = 0.5, max_iter = 6):
     nuisance.
 
     The number of excluded (signal) eigenvalues is determined self-consistently.
+
+    q > 1 is supported.  There the correlation matrix is rank deficient and
+    carries an atom of N - T exact zeros at the origin; `mp_cdf` normalises to
+    the continuous bulk only, so those are stripped before fitting rather than
+    allowed to drag the lower edge onto zero.  The count is returned as
+    `n_zero`.
+
+    Raises
+    ------
+    RuntimeError
+        If the optimiser never reaches a feasible point.  Returning the
+        infeasible sentinel as if it were a KS distance would hand every
+        downstream consumer -- RIE, Clipping, FactorModel, the backtest
+        diagnostics -- a fitted edge with no fit behind it.
     """
     ev = np.sort(np.asarray(evals, float))
+    n_zero = int((ev <= zero_tol * max(float(ev[-1]), 1.0)).sum())
+    ev = ev[n_zero:]
     N = ev.size
+    if N < 10:
+        raise ValueError(
+            f"only {N} non-degenerate eigenvalues; too few to fit an MP bulk")
+
+    lo_q, hi_q = float(q_bounds[0]), float(q_bounds[1])
+    q0 = float(np.clip(q0, lo_q * 1.01, hi_q * 0.99))
+    max_iter = max(1, int(max_iter))
 
     def n_above(q, s2):
         return int((ev > mp_edges(q, s2)[1]).sum())
@@ -79,12 +104,13 @@ def fit_mp_bulk(evals, n_exclude = None, q0 = 0.5, max_iter = 6):
         n_exclude = max(1, n_above(q0, 1.0))
 
     for _ in range(max_iter):
+        n_exclude = int(np.clip(n_exclude, 1, N - 10))
         bulk = ev[: N - n_exclude]
         emp = np.arange(1, bulk.size + 1) / bulk.size
 
         def obj(theta):
             q, s2 = np.exp(theta)
-            if not (1e-3 < q < 0.999) or not (1e-3 < s2 < 10.0):
+            if not (lo_q < q < hi_q) or not (1e-3 < s2 < 10.0):
                 return 1e6
             return np.max(np.abs(mp_cdf(bulk, q, s2) - emp))
 
@@ -96,8 +122,21 @@ def fit_mp_bulk(evals, n_exclude = None, q0 = 0.5, max_iter = 6):
             break
         n_exclude, q0 = new, q_eff
 
+    if not np.isfinite(res.fun) or res.fun >= 1e6:
+        raise RuntimeError(
+            f"MP bulk fit found no feasible point (q0={q0:.4g}); q must lie in "
+            f"{q_bounds} and sigma2 in (1e-3, 10)")
+
+    # A q_eff sitting on a bound is a constrained optimum, not a fitted one:
+    # the reported edge then reflects `q_bounds`, not the spectrum.
+    if q_eff <= lo_q * 1.01 or q_eff >= hi_q * 0.99:
+        warnings.warn(
+            f"q_eff = {q_eff:.4g} is pinned at the q_bounds={q_bounds} boundary; "
+            f"the fit is constrained and lambda_plus should not be trusted",
+            RuntimeWarning, stacklevel=2)
+
     return dict(q_eff=float(q_eff), sigma2=float(sigma2),
-                n_exclude=int(n_exclude), ks=float(res.fun),
+                n_exclude=int(n_exclude), n_zero=n_zero, ks=float(res.fun),
                 lambda_minus=float(mp_edges(q_eff, sigma2)[0]),
                 lambda_plus=float(mp_edges(q_eff, sigma2)[1]))
 
