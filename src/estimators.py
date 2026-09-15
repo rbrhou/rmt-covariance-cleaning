@@ -6,7 +6,9 @@ from .spectral import spectrum, fit_mp_bulk, stieltjes, default_eta, mp_edges
 
 __all__ = [
     "CovarianceEstimator", "Sample", "Clipping", "LinearShrinkage",
-    "NonlinearShrinkage", "RIE", "FactorModel", "Oracle", "REGISTRY", "build",
+    "NonlinearShrinkage", "RIE", "CrossValidatedShrinkage", "FactorModel",
+    "Oracle", "REGISTRY", "build",
+    "invert_spike", "spike_overlap",
 ]
 
 
@@ -21,11 +23,24 @@ class CovarianceEstimator(ABC):
 
     name: str = "base"
 
-    def fit(self, X):
+    def fit(self, X, spectrum_=None):
+        """Fit on X (T, N).
+
+        `spectrum_` is an optional (evals, evecs, C) triple from
+        `spectral.spectrum(X)`.  Estimators differ only in the map applied to
+        the eigenvalues, so when several are fitted to the same window the
+        caller computes `eigh` once and passes the result to all of them.
+        """
         X = np.asarray(X, float)
         self.T_, self.N_ = X.shape
         self.q_ = self.N_ / self.T_
-        self.lambda_, self.U_, self.C_ = spectrum(X)
+        if spectrum_ is None:
+            spectrum_ = spectrum(X)
+        self.lambda_, self.U_, self.C_ = spectrum_
+        if self.lambda_.shape[0] != self.N_:
+            raise ValueError(
+                f"spectrum_ has {self.lambda_.shape[0]} eigenvalues but X has "
+                f"{self.N_} columns; it belongs to a different window")
         self.eigenvalues_ = np.asarray(self._shrink(X), float)
         return self
 
@@ -135,6 +150,74 @@ def _lp_formula(lam, q, m):
     return lam / np.abs(1 - q + q * lam * m) ** 2
 
 
+def spike_overlap(theta, q, sigma2=1.0):
+    """BBP squared overlap between the sample and population spike vectors.
+
+        omega(theta) = (1 - q / (t - 1)^2) / (1 + q / (t - 1)),   t = theta / sigma2
+
+    Zero at and below the detectability threshold t = 1 + sqrt(q): there the
+    outlier has merged into the bulk and its eigenvector carries no information
+    about the population direction.  This is the quantity that makes "the spike
+    is visible" and "the spike is estimable" different statements.
+    """
+    t = np.asarray(theta, float) / sigma2
+    q = float(q)
+    d = t - 1.0
+    with np.errstate(divide="ignore", invalid="ignore"):
+        om = (1.0 - q / d ** 2) / (1.0 + q / d)
+    om = np.where(t > 1.0 + np.sqrt(q), om, 0.0)
+    return np.clip(np.nan_to_num(om, nan=0.0, posinf=0.0, neginf=0.0), 0.0, 1.0)
+
+
+def invert_spike(lam, q, sigma2=1.0):
+    """Recover the population spike theta from an observed outlier lambda.
+
+    Inverts the BBP map lambda = sigma2 * t * (1 + q / (t - 1)), which rearranges
+    to t^2 - (1 + u - q) t + u = 0 with u = lambda / sigma2.  The larger root is
+    the physical branch; the smaller one lies below the detectability threshold
+    where the map is decreasing and not invertible.
+
+    Returns
+    -------
+    theta : ndarray
+        Recovered population eigenvalues, NaN where `lam` is not detectable.
+    detectable : ndarray of bool
+        Whether lambda exceeds sigma2 * (1 + sqrt(q))^2, i.e. whether there is
+        anything to recover at all.
+    """
+    u = np.asarray(lam, float) / sigma2
+    q = float(q)
+    b = 1.0 + u - q
+    disc = b ** 2 - 4.0 * u
+    detectable = (u > (1.0 + np.sqrt(q)) ** 2) & (disc >= 0.0)
+    root = (b + np.sqrt(np.where(disc > 0.0, disc, 0.0))) / 2.0
+    theta = np.where(detectable, root * sigma2, np.nan)
+    return theta, detectable
+
+
+def _isotonic(y):
+    """Pool-adjacent-violators: nearest non-decreasing sequence to y in L2."""
+    y = np.asarray(y, float)
+    n = y.size
+    val, wt = np.empty(n), np.empty(n)
+    val[0], wt[0] = y[0], 1.0
+    top = 0
+    for i in range(1, n):
+        top += 1
+        val[top], wt[top] = y[i], 1.0
+        while top > 0 and val[top - 1] > val[top]:
+            w = wt[top - 1] + wt[top]
+            val[top - 1] = (wt[top - 1] * val[top - 1] + wt[top] * val[top]) / w
+            wt[top - 1] = w
+            top -= 1
+    out, j = np.empty(n), 0
+    for b in range(top + 1):
+        k = j + int(wt[b])
+        out[j:k] = val[b]
+        j = k
+    return out
+
+
 class RIE(CovarianceEstimator):
     """Bun-Bouchaud-Potters rotationally invariant estimator.
 
@@ -219,6 +302,60 @@ class NonlinearShrinkage(CovarianceEstimator):
         return np.maximum(lam / np.maximum(denom, 1e-12), 1e-10)
 
 
+class CrossValidatedShrinkage(CovarianceEstimator):
+    """K-fold cross-validated eigenvalue shrinkage.
+
+    The non-asymptotic counterpart to the RIE.  Rather than invoking a large-N
+    limit, it measures the out-of-sample variance along each eigendirection
+    directly: eigenvectors come from K-1 folds, the variance along them from the
+    held-out fold.  Taking the two from the same data is precisely what biases
+    the sample covariance, so never doing that is the whole method.
+
+    Makes no asymptotic assumption and no distributional one, which is what
+    makes agreement with the RIE evidence for both.  Costs K extra `eigh` calls
+    and is noisier at small T.
+    """
+
+    name = "cv"
+
+    def __init__(self, n_folds=5, rng=0, isotonic=True, preserve_trace=True):
+        self.n_folds = n_folds
+        self.rng = rng
+        self.isotonic = isotonic
+        self.preserve_trace = preserve_trace
+
+    def _shrink(self, X):
+        T, N = self.T_, self.N_
+        k = int(max(2, min(self.n_folds, T)))
+        rng = (self.rng if isinstance(self.rng, np.random.Generator)
+               else np.random.default_rng(self.rng))
+        folds = np.array_split(rng.permutation(T), k)
+        self.n_folds_ = k
+
+        xi = np.zeros(N)
+        for i in range(k):
+            te = folds[i]
+            tr = np.concatenate([folds[j] for j in range(k) if j != i])
+            # Rescale the held-out rows by the training standard deviations so
+            # the projection is on the same correlation scale as the training
+            # eigenvectors; the test fold must contribute no scale of its own.
+            sd = X[tr].std(axis=0, ddof=1)
+            sd = np.where(sd > 1e-12, sd, 1.0)
+            _, U_tr, _ = spectrum(X[tr])
+            xi += (((X[te] / sd) @ U_tr) ** 2).mean(axis=0)
+        xi /= k
+
+        # lambda_ is ascending, so xi should be too.  Cross-validation noise
+        # breaks that at the resolution of the spacing; project back onto the
+        # monotone cone rather than leaving crossings in the map.
+        if self.isotonic:
+            xi = _isotonic(xi)
+        xi = np.maximum(xi, 1e-10)
+        if self.preserve_trace:
+            xi *= self.lambda_.sum() / xi.sum()
+        return xi
+
+
 class Oracle(CovarianceEstimator):
     """xi_i = u_i' C u_i, the unattainable target.  Synthetic data only."""
 
@@ -235,7 +372,8 @@ class Oracle(CovarianceEstimator):
 
 REGISTRY = {
     cls.name: cls for cls in
-    (Sample, Clipping, LinearShrinkage, FactorModel, RIE, NonlinearShrinkage, Oracle)
+    (Sample, Clipping, LinearShrinkage, FactorModel, RIE, NonlinearShrinkage,
+     CrossValidatedShrinkage, Oracle)
 }
 
 
