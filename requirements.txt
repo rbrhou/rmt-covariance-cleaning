@@ -1,0 +1,21 @@
+# Core: required by src/ and by all three notebooks.
+# Install into the SAME interpreter your Jupyter kernel runs, not just the one
+# on your shell PATH -- those are often different, which is the usual cause of
+# a "ModuleNotFoundError: No module named 'scipy'" that survives a pip install:
+#
+#     python -c "import sys; print(sys.executable)"      # in a notebook cell
+#     "<that path>" -m pip install -r requirements.txt
+#
+numpy>=1.24
+pandas>=2.0
+scipy>=1.10
+matplotlib>=3.7
+
+# Jupyter kernel, so VS Code can attach to this environment.
+ipykernel>=6.0
+
+# Optional -- only needed for specific code paths:
+#   cvxpy    backtest.min_variance_long_only (long-only portfolios)
+#   pyarrow  data.load_prices on a .parquet file (not needed for .csv)
+# cvxpy>=1.3
+# pyarrow>=12.0
