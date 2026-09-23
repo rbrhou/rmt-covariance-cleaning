@@ -6,7 +6,7 @@ from .spectral import spectrum, fit_mp_bulk, stieltjes, default_eta, mp_edges
 
 __all__ = [
     "CovarianceEstimator", "Sample", "Clipping", "LinearShrinkage",
-    "NonlinearShrinkage", "RIE", "CrossValidatedShrinkage", "FactorModel",
+    "NonlinearShrinkage", "RIE", "CrossValidatedShrinkage",
     "Oracle", "REGISTRY", "build",
     "invert_spike", "spike_overlap",
 ]
@@ -125,24 +125,6 @@ class LinearShrinkage(CovarianceEstimator):
         return a * self.lambda_ + (1 - a) * mu
 
 
-class FactorModel(CovarianceEstimator):
-    """Statistical factor model: top-k eigenvalues plus a diagonal residual."""
-
-    name = "factor"
-
-    def __init__(self, k=None):
-        self.k = k
-
-    def _shrink(self, X):
-        k = self.k
-        if k is None:
-            k = max(1, fit_mp_bulk(self.lambda_, q0=self.q_)["n_exclude"])
-        self.k_ = k
-        xi = self.lambda_.copy()
-        xi[: self.N_ - k] = self.lambda_[: self.N_ - k].mean()
-        return xi
-
-
 # Nonlinear Shrinkage / RIE
 
 def _lp_formula(lam, q, m):
@@ -193,7 +175,6 @@ def invert_spike(lam, q, sigma2=1.0):
     root = (b + np.sqrt(np.where(disc > 0.0, disc, 0.0))) / 2.0
     theta = np.where(detectable, root * sigma2, np.nan)
     return theta, detectable
-
 
 def _isotonic(y):
     """Pool-adjacent-violators: nearest non-decreasing sequence to y in L2."""
