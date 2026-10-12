@@ -13,11 +13,9 @@ __all__ = [
 
 
 # Base class
-
 class CovarianceEstimator(ABC):
     """Fit on X (T, N); expose the cleaned matrix and the shrinkage map.
-
-    `eigenvalues_` is part of the public surface, not an implementation detail:
+    'eigenvalues_' is part of the public surface, not an implementation detail:
     it is what lets every estimator's xi(lambda) map be plotted in one loop.
     """
 
@@ -62,17 +60,14 @@ class CovarianceEstimator(ABC):
 
 
 # Baselines
-
 class Sample(CovarianceEstimator):
     name = "sample"
 
     def _shrink(self, X):
         return self.lambda_
 
-
 class Clipping(CovarianceEstimator):
     """Laloux et al.: keep eigenvalues above the MP edge, flatten the bulk.
-
     Trace-preserving.  Discontinuous at the edge, which is why it produces
     jumpier portfolio weights than the smooth estimators.
     """
@@ -98,7 +93,6 @@ class Clipping(CovarianceEstimator):
 
 class LinearShrinkage(CovarianceEstimator):
     """Ledoit-Wolf (2004): xi = alpha * lambda + (1 - alpha) * mean(lambda).
-
     The affine special case of nonlinear shrinkage.  Near-optimal when q is
     small and the population spectrum is tight; visibly suboptimal otherwise.
     """
@@ -126,11 +120,9 @@ class LinearShrinkage(CovarianceEstimator):
 
 
 # Nonlinear Shrinkage / RIE
-
 def _lp_formula(lam, q, m):
     """Ledoit-Peche / BBP: xi = lambda / |1 - q + q*lambda*m(lambda)|^2."""
     return lam / np.abs(1 - q + q * lam * m) ** 2
-
 
 def spike_overlap(theta, q, sigma2=1.0):
     """BBP squared overlap between the sample and population spike vectors.
@@ -205,8 +197,8 @@ class RIE(CovarianceEstimator):
     Estimates the Stieltjes transform directly from the sample eigenvalues with
     a finite imaginary regularisation eta ~ N^{-1/2}.  `eta` is the only tuning
     knob and the sensitivity plot in eta belongs in the writeup.
-
-    `isotropic=True` applies the small-eigenvalue correction near the lower
+    
+    'isotropic=True' applies the small-eigenvalue correction near the lower
     edge, where the asymptotics are weakest.
     """
 
