@@ -18,7 +18,6 @@ class CovarianceEstimator(ABC):
     'eigenvalues_' is part of the public surface, not an implementation detail:
     it is what lets every estimator's xi(lambda) map be plotted in one loop.
     """
-
     name: str = "base"
 
     def fit(self, X, spectrum_=None):
