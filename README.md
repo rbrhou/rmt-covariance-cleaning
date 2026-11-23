@@ -1,4 +1,4 @@
-# Cleaning Large Correlation Matrices with Random Matrix Theory
+# Random Matrix Theory Tools for Cleaning Large Sample Covariance Matrix
 Rotationally invariant estimation of equity correlation matrices, validated against an oracle and tested out of sample on minimum-variance portfolios.
 * **Status**: _Incomplete_
 
