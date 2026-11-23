@@ -25,19 +25,28 @@ which needs C itself. Each estimator below is a different way of approximating t
 
 ### The estimators
 
-**Sample**: keep the raw eigenvalues. This is the baseline.
+* **Sample**: keep the raw eigenvalues. This is the baseline.
 Clipping (Laloux et al. 1999): keep eigenvalues above the noise edge, and replace those inside the noise bulk with their average.
+
 $$\lambda_+ = \sigma^2 \left(1 + \sqrt{q}\right)^2$$
-**Linear shrinkage (Ledoit–Wolf 2004)**: pull every eigenvalue toward the mean with a single weight. This is optimal if C is drawn from an Inverse-Wishart prior.
+
+* **Linear shrinkage (Ledoit–Wolf 2004)**: pull every eigenvalue toward the mean with a single weight. This is optimal if C is drawn from an Inverse-Wishart prior.
+
 $$\xi_i = (1 - \alpha)\,\lambda_i + \alpha$$
-**RIE / Ledoit–Péché (Ledoit–Péché 2011; Bun–Bouchaud–Potters 2017)**: as N grows, the oracle converges to a function of the observed spectrum alone, through its Stieltjes transform g. This is the main estimator we implement.
+
+* **RIE / Ledoit–Péché (Ledoit–Péché 2011; Bun–Bouchaud–Potters 2017)**: as N grows, the oracle converges to a function of the observed spectrum alone, through its Stieltjes transform g. This is the main estimator we implement.
+
 $$\hat\xi(\lambda) = \frac{\lambda}{\left|1 - q + q\lambda\, g_E(\lambda - i\eta)\right|^2}$$
-**BBP spike branch**: a population factor θ produces a separated sample eigenvalue only above a threshold. Above it, we invert the outlier map to estimate θ, then weight by the eigenvector overlap. Below it, the factor cannot be recovered by any estimator.
+
+* **BBP spike branch**: a population factor θ produces a separated sample eigenvalue only above a threshold. Above it, we invert the outlier map to estimate θ, then weight by the eigenvector overlap. Below it, the factor cannot be recovered by any estimator.
+
 $$
 \theta_c = \sigma^2\left(1 + \sqrt{q}\right), \qquad
 \lambda = \theta\left(1 + \frac{q\sigma^2}{\theta - \sigma^2}\right)
 $$
-**Analytical nonlinear shrinkage (Ledoit–Wolf 2020)**: reaches the same limit through kernel smoothing of the spectrum. It serves as an independent check on the RIE.
+
+* **Analytical nonlinear shrinkage (Ledoit–Wolf 2020)**: reaches the same limit through kernel smoothing of the spectrum. It serves as an independent check on the RIE.
+
 **Factor model**: the one estimator outside the class. It imposes eigenvector structure and tests whether that information pays off. (Maybe)
 
 Due to my current academic dedication, I was unable to find time to finish this project and the code implementation, while the general scheme being in the right direction, needs refinements.
