@@ -45,7 +45,7 @@ $$
 \lambda = \theta\left(1 + \frac{q\sigma^2}{\theta - \sigma^2}\right)
 $$
 
-* **Analytical nonlinear shrinkage (Ledoit–Wolf 2020)**: reaches the same limit through kernel smoothing of the spectrum. It serves as an independent check on the RIE.
+* **Analytical nonlinear shrinkage (Ledoit–Wolf 2020)**: reaches the same limit through kernel smoothing of the spectrum. It serves as an independent check on the RIE. Please refer to the notes for detail. 
 
 * **Factor model**: the one estimator outside the class. It imposes eigenvector structure and tests whether that information pays off. (Maybe)
 
