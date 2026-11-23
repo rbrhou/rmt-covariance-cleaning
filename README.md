@@ -47,7 +47,7 @@ $$
 
 * **Analytical nonlinear shrinkage (Ledoit–Wolf 2020)**: reaches the same limit through kernel smoothing of the spectrum. It serves as an independent check on the RIE. Please refer to the notes for detail. 
 
-* **Factor model**: the one estimator outside the class. It imposes eigenvector structure and tests whether that information pays off. (Maybe)
+* **Factor model**: the one estimator outside the class. It imposes eigenvector structure and tests whether that information pays off. (_Maybe_)
 
 While the general idea of the concept may seem easy to digest, it does require sufficient background in Random Matrix Theory, and it can 
 get very confusing very quickly. Due to my current academic dedication, I was unable to find time to finish this project and the code implementation, while the general scheme being in the right direction, needs refinements. I've posted some of my obsidian study notes in the "**notes**" file of the repo, feel free to check that out if you find this project interesting or confusing. 
