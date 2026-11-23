@@ -49,5 +49,12 @@ $$
 
 * **Factor model**: the one estimator outside the class. It imposes eigenvector structure and tests whether that information pays off. (Maybe)
 
-Due to my current academic dedication, I was unable to find time to finish this project and the code implementation, while the general scheme being in the right direction, needs refinements.
-I've posted some of my obsidian study notes in the "**notes**" file of the repo, feel free to check that out if you find this interesting. 
+While the general idea of the concept may seem easy to digest, it does require sufficient background in Random Matrix Theory, and it can 
+get very confusing very quickly. Due to my current academic dedication, I was unable to find time to finish this project and the code implementation, while the general scheme being in the right direction, needs refinements. I've posted some of my obsidian study notes in the "**notes**" file of the repo, feel free to check that out if you find this project interesting or confusing. 
+
+## References
+* [1] Ledoit, O., & Wolf, M. (2020). Analytical nonlinear shrinkage of large-dimensional covariance matrices. _The Annals of Statistics_, _48_. [https://doi.org/10.1214/19-aos1921](https://doi.org/10.1214/19-aos1921)
+* [2] Bun, J., Bouchaud, J.-P., & Potters, M. (2017). Cleaning large correlation matrices: Tools from random matrix theory. _Physics Reports_, 666, 1–109 [https://doi.org/10.1016/j.physrep.2016.10.005](https://www.google.com/search?q=https://doi.org/10.1016/j.physrep.2016.10.005)
+* [3] Ledoit, O., & Péché, S. (2010). Eigenvectors of some large sample covariance matrix ensembles. _Probability Theory and Related Fields_, _151_, 233–264. [https://doi.org/10.1007/s00440-010-0298-3](https://doi.org/10.1007/s00440-010-0298-3)
+* [4] Baik, J., Ben Arous, G., & Péché, S. (2024). Phase transition of the largest eigenvalue for nonnull complex sample covariance matrices. _The Annals of Probability_, _33_(5), 1643–1697. [https://doi.org/10.1214/009117905000000233]
+* More to come...
